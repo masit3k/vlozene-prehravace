@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<title>Ukázka: klasický iframe vs. fasáda</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400..700;1,400..700&family=IBM+Plex+Sans:wght@400;600&family=JetBrains+Mono:wght@400;700&display=swap">
+<style>
+  :root { --bg:#FAF8F3; --ink:#1C1F1D; --muted:#4A4F4C; --line:#D6D0C2; --accent:#1F4D3A; --tint:#EEF2EE; --code:#EFECE4; --gold:#E9D9A6; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:17px/1.55 "IBM Plex Sans", "Segoe UI", Arial, sans-serif; }
+  main { max-width:1200px; margin:0 auto; padding:32px 16px 48px; display:grid; gap:24px; }
+  h1 { margin:0; font-family:"EB Garamond", Georgia, serif; font-weight:500; font-size:clamp(32px,5vw,56px); line-height:1.1; }
+  .eyebrow { margin:0; font-family:"EB Garamond", Georgia, serif; font-style:italic; font-size:22px; color:var(--accent); }
+  hr.rule { width:80px; border:0; border-top:3px solid var(--accent); margin:0; }
+  .lead { margin:0; color:var(--muted); max-width:70ch; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr)); gap:40px; }
+  .card { border-top:2px solid var(--accent); padding:20px 0 0; display:grid; gap:12px; min-width:0; }
+  .card h2 { margin:0; font-family:"EB Garamond", Georgia, serif; font-weight:600; font-size:30px; line-height:1.2; }
+  .tag { justify-self:start; font-family:"EB Garamond", Georgia, serif; font-style:italic; font-size:19px; color:var(--accent); }
+  .player { width:100%; max-width:100%; aspect-ratio:16/9; overflow:hidden; background:#1C1F1D; position:relative; }
+  .player iframe { width:100%; height:100%; border:0; display:block; }
+  /* Fasáda: náhled + tlačítko, žádný kód třetí strany */
+  .facade { all:unset; position:absolute; inset:0; cursor:pointer; background:#000 center/cover no-repeat; }
+  .facade::after { content:""; position:absolute; left:50%; top:50%; width:72px; height:50px; transform:translate(-50%,-50%);
+    background:var(--accent); border-radius:6px; }
+  .facade::before { content:""; position:absolute; left:50%; top:50%; z-index:1; transform:translate(-35%,-50%);
+    border-style:solid; border-width:12px 0 12px 20px; border-color:transparent transparent transparent #fff; }
+  .facade:focus-visible { outline:4px solid var(--gold); outline-offset:-4px; }
+  .status { font-size:14px; color:var(--muted); margin:0; }
+  .status b { color:var(--ink); }
+  ol { margin:0; padding-left:20px; color:var(--muted); }
+  code { font-family:"JetBrains Mono", Consolas, monospace; font-size:.9em; background:var(--code); padding:1px 5px; }
+  .warn { background:#F6E9C8; border-left:6px solid #8A6A12; padding:16px 20px; }
+  .warn p { margin:0; }
+  .card.note { background:var(--tint); border-top:0; padding:20px 24px; }
+  @media (prefers-reduced-motion: reduce) { * { transition:none !important; } }
+</style>
+</head>
+<body>
+<main>
+  <p class="eyebrow">Vložené přehrávače třetích stran · živá ukázka</p>
+  <h1>Stejné video dvakrát</h1>
+  <hr class="rule">
+  <p class="lead">Vlevo klasický embed kód z YouTube, vpravo fasáda. Otevřete DevTools (F12) → záložka <b>Network</b> → obnovte stránku (Ctrl+Shift+R) a porovnejte počet požadavků a přenesená data před kliknutím na pravé video a po něm.</p>
+
+  <div class="warn" id="file-warn" hidden>
+    <p><b>Stránka je otevřená ze souboru (file://), YouTube proto hlásí chybu 153.</b> Spusťte ji přes lokální server: ve VS Code <i>Open with Live Server</i>, nebo v této složce v terminálu <code>python -m http.server 8000</code> a otevřete <code>http://localhost:8000</code>.</p>
+  </div>
+
+  <div class="grid">
+    <section class="card" aria-labelledby="a-h">
+      <h2 id="a-h">A) Klasický iframe</h2>
+      <span class="tag">Standard HTML, načte se hned</span>
+      <div class="player" id="a-player"></div>
+      <p class="status" id="a-status">Stav: <b>načítá se…</b></p>
+    </section>
+
+    <section class="card" aria-labelledby="b-h">
+      <h2 id="b-h">B) Fasáda (facade)</h2>
+      <span class="tag">Vzor: náhled + tlačítko, iframe až po kliknutí</span>
+      <div class="player" id="b-player">
+        <button class="facade" id="b-facade" type="button" aria-label="Přehrát video: ukázkové video"></button>
+      </div>
+      <p class="status" id="b-status">Stav: <b>nic od YouTube se zatím nestáhlo</b> (kromě náhledového obrázku)</p>
+    </section>
+  </div>
+
+  <section class="card note">
+    <h2>Na co se dívat</h2>
+    <ol>
+      <li>V Network zadejte do filtru <code>youtube</code>: u A je hned spousta požadavků (skripty, styly, fonty), u B jen obrázek <code>hqdefault.jpg</code>.</li>
+      <li>Klikněte na B: teprve teď se stáhne přehrávač (<code>youtube-nocookie.com</code>).</li>
+      <li>V záložce Application → Cookies se podívejte, co si třetí strana uložila.</li>
+      <li>Lighthouse (záložka v DevTools) → Performance: porovnejte stránku s A a bez něj.</li>
+    </ol>
+  </section>
+</main>
+
+<script>
+  // ID videa – při změně stačí přepsat tady
+  const VIDEO_ID = "aqz-KE-bpKQ";
+  if (location.protocol === "file:") document.getElementById("file-warn").hidden = false;
+
+  // A) klasický embed, vložen hned při načtení stránky
+  const a = document.createElement("iframe");
+  a.src = "https://www.youtube.com/embed/" + VIDEO_ID;
+  a.title = "Ukázkové video (klasický iframe)";
+  a.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share";
+  a.referrerPolicy = "strict-origin-when-cross-origin";
+  a.allowFullscreen = true;
+  const t0 = performance.now();
+  a.addEventListener("load", () => {
+    document.getElementById("a-status").innerHTML =
+      "Stav: <b>přehrávač stažen za " + Math.round(performance.now() - t0) + " ms</b>, aniž by ho kdo spustil";
+  });
+  document.getElementById("a-player").appendChild(a);
+
+  // B) fasáda: jen náhled z i.ytimg.com
+  const facade = document.getElementById("b-facade");
+  facade.style.backgroundImage = "url(https://i.ytimg.com/vi/" + VIDEO_ID + "/hqdefault.jpg)";
+
+  // Najetí myší: předběžné spojení (preconnect)
+  let warmed = false;
+  facade.addEventListener("pointerover", () => {
+    if (warmed) return; warmed = true;
+    for (const href of ["https://www.youtube-nocookie.com", "https://www.google.com"]) {
+      const l = document.createElement("link"); l.rel = "preconnect"; l.href = href; document.head.appendChild(l);
+    }
+  }, { once: true });
+
+  // Kliknutí: teprve teď skutečný iframe
+  facade.addEventListener("click", () => {
+    const b = document.createElement("iframe");
+    b.src = "https://www.youtube-nocookie.com/embed/" + VIDEO_ID + "?autoplay=1";
+    b.title = "Ukázkové video (fasáda)";
+    b.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen";
+    b.referrerPolicy = "strict-origin-when-cross-origin";
+    b.allowFullscreen = true;
+    const t1 = performance.now();
+    b.addEventListener("load", () => {
+      document.getElementById("b-status").innerHTML =
+        "Stav: <b>přehrávač stažen až po kliknutí (" + Math.round(performance.now() - t1) + " ms)</b>";
+    });
+    facade.replaceWith(b);
+    b.focus();
+  });
+</script>
+</body>
+</html>
