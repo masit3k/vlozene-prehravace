@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="strict-origin-when-cross-origin">
-<title>Ukázka: klasický iframe vs. fasáda</title>
+<title>Ukázka: klasický iframe, fasáda a lazy loading</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400..700;1,400..700&family=IBM+Plex+Sans:wght@400;600&family=JetBrains+Mono:wght@400;700&display=swap">
 <style>
@@ -36,15 +36,21 @@
   .warn { background:#F6E9C8; border-left:6px solid #8A6A12; padding:16px 20px; }
   .warn p { margin:0; }
   .card.note { background:var(--tint); border-top:0; padding:20px 24px; }
+  .audio { width:100%; height:152px; border:0; border-radius:12px; display:block; }
+  a { color:var(--accent); }
+  a:focus-visible { outline:3px solid var(--accent); outline-offset:3px; }
+  .spacer { min-height:6000px; border:2px dashed var(--line); padding:20px 24px; color:var(--muted); }
+  .spacer p { margin:0 0 12px; max-width:70ch; }
   @media (prefers-reduced-motion: reduce) { * { transition:none !important; } }
 </style>
 </head>
 <body>
-<main>
+<main id="top">
   <p class="eyebrow">Vložené přehrávače třetích stran · živá ukázka</p>
   <h1>Stejné video dvakrát</h1>
   <hr class="rule">
   <p class="lead">Vlevo klasický embed kód z YouTube, vpravo fasáda. Otevřete DevTools (F12) → záložka <b>Network</b> → obnovte stránku (Ctrl+Shift+R) a porovnejte počet požadavků a přenesená data před kliknutím na pravé video a po něm.</p>
+  <p class="lead">Třetí přehrávač, Spotify s atributem <code>loading="lazy"</code>, je schválně o 6 000 px níž, aby ho prohlížeč nenačetl dopředu: <a href="#c">přejít na ukázku C ↓</a></p>
 
   <div class="warn" id="file-warn" hidden>
     <p><b>Stránka je otevřená ze souboru (file://), YouTube proto hlásí chybu 153.</b> Spusťte ji přes lokální server: ve VS Code <i>Open with Live Server</i>, nebo v této složce v terminálu <code>python -m http.server 8000</code> a otevřete <code>http://localhost:8000</code>.</p>
@@ -71,17 +77,36 @@
   <section class="card note">
     <h2>Na co se dívat</h2>
     <ol>
-      <li>V Network zadejte do filtru <code>youtube</code>: u A je hned spousta požadavků (skripty, styly, fonty), u B jen obrázek <code>hqdefault.jpg</code>.</li>
+      <li>V Network zadejte do filtru <code>nocookie</code>: před kliknutím na B tam není nic. Přehrávač A se načítá z <code>youtube.com</code>, náhled B z <code>i.ytimg.com</code>.</li>
       <li>Klikněte na B: teprve teď se stáhne přehrávač (<code>youtube-nocookie.com</code>).</li>
       <li>V záložce Application → Cookies se podívejte, co si třetí strana uložila.</li>
-      <li>Lighthouse (záložka v DevTools) → Performance: porovnejte stránku s A a bez něj.</li>
+      <li>Zadejte do filtru <code>spotify</code> a přejděte na ukázku C: přehrávač se stáhne, až když se k němu přiblížíte.</li>
     </ol>
+  </section>
+
+  <div class="spacer">
+    <p>Tady by na skutečném webu byl dlouhý článek (6 000 px).</p>
+    <p>Prohlížeč začne iframe s <code>loading="lazy"</code> stahovat s předstihem, ještě než se objeví na obrazovce. Jak velký předstih dá, si určuje sám, proto je ukázka C tak daleko.</p>
+  </div>
+
+  <section class="card" id="c" aria-labelledby="c-h">
+    <h2 id="c-h">C) Spotify s <code>loading="lazy"</code></h2>
+    <span class="tag">Standard HTML: prohlížeč iframe stáhne, až když se k němu přiblížíte</span>
+    <iframe id="c-player" class="audio" title="Spotify: ukázkový podcast NerdOut@Spotify"
+      src="https://open.spotify.com/embed/show/5eXZwvvxt3K2dxha3BSaAe?utm_source=generator"
+      height="152" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+      loading="lazy"></iframe>
+    <p class="status" id="c-status">Stav: <b>zatím nenačteno</b>, přehrávač je daleko pod viditelnou oblastí</p>
+    <p><a href="#top">↑ Zpět nahoru</a></p>
   </section>
 </main>
 
 <script>
   // ID videa – při změně stačí přepsat tady
   const VIDEO_ID = "aqz-KE-bpKQ";
+
+  // Po obnovení stránky nevracet posun (jinak by se ukázka C načetla hned)
+  if ("scrollRestoration" in history) history.scrollRestoration = "manual";
   if (location.protocol === "file:") document.getElementById("file-warn").hidden = false;
 
   // A) klasický embed, vložen hned při načtení stránky
@@ -126,6 +151,13 @@
     });
     facade.replaceWith(b);
     b.focus();
+  });
+
+  // C) iframe s loading="lazy" je přímo v HTML, skript jen hlásí, kdy se načetl
+  document.getElementById("c-player").addEventListener("load", () => {
+    const s = (performance.now() / 1000).toFixed(1).replace(".", ",");
+    document.getElementById("c-status").innerHTML =
+      "Stav: <b>načteno až " + s + " s od otevření stránky</b>, když jste se k přehrávači přiblížili";
   });
 </script>
 </body>
